@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Server, LogOut } from "lucide-react";
+import { Server, LogOut, ShoppingCart } from "lucide-react";
 
 interface NavigationProps {
   isAuthenticated: boolean;
@@ -24,6 +24,14 @@ const Navigation = ({ isAuthenticated, onLogout }: NavigationProps) => {
               {location.pathname !== "/dashboard" && (
                 <Button asChild variant="outline" className="transition-smooth hover:glow-border">
                   <Link to="/dashboard">Dashboard</Link>
+                </Button>
+              )}
+              {location.pathname !== "/buy-server" && (
+                <Button asChild variant="outline" className="transition-smooth hover:glow-border">
+                  <Link to="/buy-server">
+                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    Buy Server
+                  </Link>
                 </Button>
               )}
               <Button

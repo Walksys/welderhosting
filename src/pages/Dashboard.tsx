@@ -1,9 +1,29 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { toast } from "sonner";
-import { Copy, ExternalLink, User, Coins, MessageCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Copy, ExternalLink, Sparkles, Server, Clock, Loader2, User, MessageCircle } from "lucide-react";
+
+interface ServerData {
+  id: string;
+  server_type: "minecraft" | "bot";
+  plan_name: string;
+  ram: string;
+  cpu: string;
+  disk: string;
+  max_players: string | null;
+  cost_points: number;
+  status: string;
+  console_email: string;
+  console_password: string;
+  expires_at: string;
+  created_at: string;
+}
 
 interface DashboardProps {
   user: {
@@ -15,217 +35,323 @@ interface DashboardProps {
 }
 
 const Dashboard = ({ user }: DashboardProps) => {
-  const [points] = useState(250);
-  const maxPoints = 1000;
-  const [dashboardAccount, setDashboardAccount] = useState<{
-    email: string;
-    password: string;
-  } | null>(null);
+  const [points, setPoints] = useState(0);
+  const [servers, setServers] = useState<ServerData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [claiming, setClaiming] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const generateDashboardAccount = async () => {
-    // TODO: Replace with your actual API endpoint
-    // POST to: /api/generate-account
-    // Expected response: { email: string, password: string, consoleUrl: string }
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setInterval(() => {
+        setCooldown((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [cooldown]);
+
+  const loadUserData = async () => {
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+
+      // Load profile points
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("points, last_point_update")
+        .eq("id", authUser.id)
+        .single();
+
+      if (profile) {
+        setPoints(profile.points);
+        
+        // Check cooldown
+        const lastUpdate = new Date(profile.last_point_update);
+        const now = new Date();
+        const diff = Math.floor((now.getTime() - lastUpdate.getTime()) / 1000);
+        if (diff < 5) {
+          setCooldown(5 - diff);
+        }
+      }
+
+      // Load servers
+      const { data: serversData } = await supabase
+        .from("servers")
+        .select("*")
+        .eq("user_id", authUser.id)
+        .order("created_at", { ascending: false });
+
+      if (serversData) {
+        setServers(serversData);
+      }
+    } catch (error) {
+      console.error("Error loading data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const claimPoint = async () => {
+    if (cooldown > 0) return;
     
-    toast.info("Generating dashboard account...");
-    
-    // Placeholder: Simulate account generation
-    setTimeout(() => {
-      const generatedEmail = user.discordId 
-        ? `discord+${user.discordId}@welder.host`
-        : `${user.email.split('@')[0]}@panel.welder.host`;
+    setClaiming(true);
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({
+          points: points + 1,
+          last_point_update: new Date().toISOString(),
+        })
+        .eq("id", authUser.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setPoints(data.points);
+      setCooldown(5);
       
-      const generatedPassword = Math.random().toString(36).slice(-12);
-      
-      setDashboardAccount({
-        email: generatedEmail,
-        password: generatedPassword,
+      toast({
+        title: "تم الحصول على نقطة!",
+        description: "لديك الآن " + data.points + " نقطة",
       });
-      
-      toast.success("Dashboard account generated!");
-    }, 1500);
+    } catch (error: any) {
+      toast({
+        title: "خطأ",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setClaiming(false);
+    }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
+  const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast.success(`${label} copied to clipboard!`);
+    toast({
+      title: "تم النسخ",
+      description: "تم نسخ النص إلى الحافظة",
+    });
   };
 
-  const pointsPercentage = (points / maxPoints) * 100;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen p-4 pt-24">
-      <div className="container mx-auto max-w-6xl">
+    <div className="min-h-screen bg-background p-6 pt-24">
+      <div className="max-w-7xl mx-auto space-y-6">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 glow-text">Dashboard</h1>
-          <p className="text-muted-foreground">Manage your hosting services</p>
+          <h1 className="text-4xl font-bold mb-2">لوحة التحكم</h1>
+          <p className="text-muted-foreground">إدارة حسابك وسيرفراتك</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* User Profile Card */}
-          <Card className="glass-card glow-border transition-smooth hover:glow-border-strong">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <User className="w-5 h-5 text-primary" />
-                Profile
+                <User className="w-5 h-5" />
+                الملف الشخصي
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {user.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt="User avatar"
-                  className="w-20 h-20 rounded-full border-2 border-primary glow-border mx-auto"
-                />
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center mx-auto border-2 border-primary">
-                  <User className="w-10 h-10 text-primary" />
-                </div>
-              )}
+              <Avatar className="w-20 h-20 mx-auto">
+                <AvatarImage src={user.avatar} />
+                <AvatarFallback>{user.username[0]}</AvatarFallback>
+              </Avatar>
               <div className="text-center">
                 <p className="font-semibold text-lg">{user.username}</p>
                 <p className="text-sm text-muted-foreground">{user.email}</p>
                 {user.discordId && (
-                  <p className="text-xs text-primary mt-1">✓ Discord Connected</p>
+                  <Badge className="mt-2">Discord متصل</Badge>
                 )}
               </div>
             </CardContent>
           </Card>
 
           {/* Points Card */}
-          <Card className="glass-card glow-border transition-smooth hover:glow-border-strong">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Coins className="w-5 h-5 text-primary" />
-                Points
+                <Sparkles className="w-5 h-5" />
+                نقاطك
               </CardTitle>
-              <CardDescription>Your current balance</CardDescription>
+              <CardDescription>اجمع النقاط لشراء السيرفرات</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-center">
-                <p className="text-4xl font-bold glow-text">{points}</p>
-                <p className="text-sm text-muted-foreground">of {maxPoints} points</p>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="text-4xl font-bold">{points.toLocaleString()}</div>
+                <Progress value={(points / 100000) * 100} className="h-2" />
+                <p className="text-sm text-muted-foreground">
+                  من {(100000).toLocaleString()} نقطة
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={claimPoint}
+                    disabled={claiming || cooldown > 0}
+                    className="flex-1"
+                  >
+                    {claiming ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : cooldown > 0 ? (
+                      <>
+                        <Clock className="w-4 h-4 mr-2" />
+                        {cooldown}s
+                      </>
+                    ) : (
+                      "احصل على نقطة"
+                    )}
+                  </Button>
+                  <Button onClick={() => navigate("/buy-server")} variant="secondary">
+                    شراء سيرفر
+                  </Button>
+                </div>
               </div>
-              <Progress value={pointsPercentage} className="h-3" />
-              <p className="text-xs text-muted-foreground text-center">
-                Earn points by completing tasks and inviting friends
-              </p>
             </CardContent>
           </Card>
 
           {/* Support Card */}
-          <Card className="glass-card glow-border transition-smooth hover:glow-border-strong">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-primary" />
-                Support
+                <MessageCircle className="w-5 h-5" />
+                الدعم
               </CardTitle>
-              <CardDescription>Need help?</CardDescription>
+              <CardDescription>هل تحتاج مساعدة؟</CardDescription>
             </CardHeader>
             <CardContent>
               <Button
-                className="w-full bg-[#5865F2] hover:bg-[#4752C4] transition-smooth"
+                className="w-full"
                 onClick={() => window.open("https://discord.gg/your-invite", "_blank")}
               >
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
-                </svg>
-                Join Discord Server
+                <MessageCircle className="w-4 h-4 mr-2" />
+                انضم إلى Discord
               </Button>
             </CardContent>
           </Card>
-
-          {/* Dashboard Account Generation Card */}
-          <Card className="glass-card glow-border transition-smooth hover:glow-border-strong md:col-span-2 lg:col-span-3">
-            <CardHeader>
-              <CardTitle>Server Dashboard Access</CardTitle>
-              <CardDescription>
-                Generate credentials to access your server management panel
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!dashboardAccount ? (
-                <Button
-                  onClick={generateDashboardAccount}
-                  size="lg"
-                  className="w-full transition-smooth hover:glow-border-strong"
-                >
-                  Generate Dashboard Account
-                </Button>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Email</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={dashboardAccount.email}
-                          readOnly
-                          className="flex-1 bg-secondary px-4 py-2 rounded-md text-sm"
-                        />
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          onClick={() => copyToClipboard(dashboardAccount.email, "Email")}
-                          className="transition-smooth hover:glow-border"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Password</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={dashboardAccount.password}
-                          readOnly
-                          className="flex-1 bg-secondary px-4 py-2 rounded-md text-sm font-mono"
-                        />
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          onClick={() => copyToClipboard(dashboardAccount.password, "Password")}
-                          className="transition-smooth hover:glow-border"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <Button
-                    className="w-full transition-smooth hover:glow-border-strong"
-                    onClick={() => {
-                      // TODO: Replace with actual console URL
-                      toast.info("Console URL will be available after backend integration");
-                    }}
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Go to Console
-                  </Button>
-
-                  {user.discordId && (
-                    <p className="text-xs text-center text-muted-foreground">
-                      Contact email: {user.email}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {user.discordId ? (
-                <p className="text-sm text-center text-muted-foreground">
-                  You can redeem and manage servers with your Discord account
-                </p>
-              ) : (
-                <p className="text-sm text-center text-destructive">
-                  ⚠️ Discord login required to create or redeem servers
-                </p>
-              )}
-            </CardContent>
-          </Card>
         </div>
+
+        {/* Servers List */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Server className="w-5 h-5" />
+              سيرفراتي
+            </CardTitle>
+            <CardDescription>
+              {servers.length === 0
+                ? "ليس لديك أي سيرفرات. قم بشراء سيرفر جديد!"
+                : `لديك ${servers.length} ${servers.length === 1 ? "سيرفر" : "سيرفرات"}`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {servers.length === 0 ? (
+              <div className="text-center py-8">
+                <Server className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground mb-4">لا توجد سيرفرات حتى الآن</p>
+                <Button onClick={() => navigate("/buy-server")}>شراء سيرفر</Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {servers.map((server) => (
+                  <Card key={server.id}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="text-lg">{server.plan_name}</CardTitle>
+                          <CardDescription>
+                            {server.server_type === "minecraft" ? "Minecraft Server" : "Bot Hosting"}
+                          </CardDescription>
+                        </div>
+                        <Badge
+                          variant={server.status === "active" ? "default" : "secondary"}
+                        >
+                          {server.status}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">RAM:</span>{" "}
+                            <span className="font-medium">{server.ram}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">CPU:</span>{" "}
+                            <span className="font-medium">{server.cpu}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Disk:</span>{" "}
+                            <span className="font-medium">{server.disk}</span>
+                          </div>
+                          {server.max_players && (
+                            <div>
+                              <span className="text-muted-foreground">Players:</span>{" "}
+                              <span className="font-medium">{server.max_players}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="border-t pt-3">
+                          <p className="text-sm font-medium mb-2">معلومات الدخول:</p>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between bg-muted p-2 rounded">
+                              <span className="text-sm">{server.console_email}</span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => copyToClipboard(server.console_email)}
+                              >
+                                <Copy className="w-4 h-4" />
+                              </Button>
+                            </div>
+                            <div className="flex items-center justify-between bg-muted p-2 rounded">
+                              <span className="text-sm font-mono">{server.console_password}</span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => copyToClipboard(server.console_password)}
+                              >
+                                <Copy className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          <Button className="w-full mt-3" asChild>
+                            <a
+                              href="https://qjy64z-8030.csb.app"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              فتح الكونسول
+                              <ExternalLink className="w-4 h-4 ml-2" />
+                            </a>
+                          </Button>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          ينتهي في: {new Date(server.expires_at).toLocaleDateString("ar")}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
