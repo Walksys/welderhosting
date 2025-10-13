@@ -14,16 +14,114 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          avatar: string | null
+          created_at: string | null
+          discord_id: string
+          id: string
+          last_point_update: string | null
+          points: number
+          updated_at: string | null
+          username: string
+        }
+        Insert: {
+          avatar?: string | null
+          created_at?: string | null
+          discord_id: string
+          id: string
+          last_point_update?: string | null
+          points?: number
+          updated_at?: string | null
+          username: string
+        }
+        Update: {
+          avatar?: string | null
+          created_at?: string | null
+          discord_id?: string
+          id?: string
+          last_point_update?: string | null
+          points?: number
+          updated_at?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
+      servers: {
+        Row: {
+          console_email: string | null
+          console_password: string | null
+          cost_points: number
+          cpu: string
+          created_at: string | null
+          disk: string
+          expires_at: string
+          id: string
+          max_players: string | null
+          plan_name: string
+          ram: string
+          server_type: Database["public"]["Enums"]["server_type"]
+          status: Database["public"]["Enums"]["server_status"] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          console_email?: string | null
+          console_password?: string | null
+          cost_points: number
+          cpu: string
+          created_at?: string | null
+          disk: string
+          expires_at: string
+          id?: string
+          max_players?: string | null
+          plan_name: string
+          ram: string
+          server_type: Database["public"]["Enums"]["server_type"]
+          status?: Database["public"]["Enums"]["server_status"] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          console_email?: string | null
+          console_password?: string | null
+          cost_points?: number
+          cpu?: string
+          created_at?: string | null
+          disk?: string
+          expires_at?: string
+          id?: string
+          max_players?: string | null
+          plan_name?: string
+          ram?: string
+          server_type?: Database["public"]["Enums"]["server_type"]
+          status?: Database["public"]["Enums"]["server_status"] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      purchase_server: {
+        Args: {
+          p_cost_points: number
+          p_cpu: string
+          p_disk: string
+          p_max_players: string
+          p_plan_name: string
+          p_ram: string
+          p_server_type: Database["public"]["Enums"]["server_type"]
+        }
+        Returns: string
+      }
     }
     Enums: {
-      [_ in never]: never
+      server_status: "active" | "suspended" | "expired"
+      server_type: "minecraft" | "bot"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +248,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      server_status: ["active", "suspended", "expired"],
+      server_type: ["minecraft", "bot"],
+    },
   },
 } as const
