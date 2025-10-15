@@ -224,22 +224,44 @@ const Dashboard = ({ user }: DashboardProps) => {
             </CardContent>
           </Card>
 
-          {/* Support Card */}
-          <Card>
+          {/* Quick Actions Card */}
+          <Card className="glass-card glow-border">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MessageCircle className="w-5 h-5" />
-                الدعم
+                Quick Actions
               </CardTitle>
-              <CardDescription>هل تحتاج مساعدة؟</CardDescription>
+              <CardDescription>Manage your hosting account</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <Button
-                className="w-full"
+                className="w-full transition-smooth hover:glow-border-strong"
+                onClick={() => {
+                  const email = `${user.email}`;
+                  const password = Math.random().toString(36).slice(-12);
+                  copyToClipboard(`Email: ${email}\nPassword: ${password}`);
+                  toast({
+                    title: "Dashboard Account Generated!",
+                    description: "Credentials copied to clipboard",
+                  });
+                }}
+              >
+                Generate Dashboard Account
+              </Button>
+              <Button
+                className="w-full transition-smooth hover:glow-border-strong"
+                onClick={() => window.open("https://qjy64z-8030.csb.app", "_blank")}
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Go to Console
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full transition-smooth hover:glow-border"
                 onClick={() => window.open("https://discord.gg/your-invite", "_blank")}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
-                انضم إلى Discord
+                Join Discord Support
               </Button>
             </CardContent>
           </Card>

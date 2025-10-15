@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -23,6 +23,35 @@ const App = () => {
   } | null>(null);
   const [userPoints, setUserPoints] = useState(0);
 
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", session.user.id)
+            .single();
+
+          if (profile) {
+            setUser({
+              email: session.user.email || "",
+              username: profile.username,
+              avatar: profile.avatar,
+              discordId: profile.discord_id,
+            });
+            await loadUserPoints();
+          }
+        } else {
+          setUser(null);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const handleAuthenticate = async (userData: {
     email: string;
     username: string;
@@ -33,7 +62,8 @@ const App = () => {
     await loadUserPoints();
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
   };
 
