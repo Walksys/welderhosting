@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "0.0.0.0",
     port: 8080,
-    allowedHosts: ['mxz2k4-8080.csb.app'] 
+    allowedHosts: ['tyqvtc-8080.csb.app'] 
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
