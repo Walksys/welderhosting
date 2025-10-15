@@ -1,65 +1,41 @@
-import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_ANON_KEY!
-);
+"use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function AuthPage() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
+  const router = useRouter();
+  const supabase = createClientComponentClient();
 
-  const handleDiscordAuth = async () => {
-    setLoading(true);
-    setError(null);
+  useEffect(() => {
+    const handleAuthCallback = async () => {
+      // لو فيه access token في الرابط
+      const hash = window.location.hash;
+      if (hash.includes("access_token")) {
+        const params = new URLSearchParams(hash.substring(1));
+        const access_token = params.get("access_token");
+        const refresh_token = params.get("refresh_token");
 
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "discord",
-        options: {
-          redirectTo: `${import.meta.env.VITE_REDIRECT_URL}/auth`,
-          scopes: "identify email",
-        },
-      });
-
-      if (error) {
-        console.error("Discord OAuth error:", error);
-        setError("Failed to connect to Discord. Please try again.");
-        toast({
-          title: "Authentication Error",
-          description: "Please log in with your real Discord account.",
-          variant: "destructive",
-        });
+        if (access_token && refresh_token) {
+          // خزّن التوكن في Supabase session
+          await supabase.auth.setSession({
+            access_token,
+            refresh_token,
+          });
+          // بعدين ودّيه للداشبورد
+          router.push("/dashboard");
+        }
       }
-    } catch (err: any) {
-      console.error("Discord auth error:", err);
-      setError("Authentication failed. Please ensure you're using a real Discord account.");
-      toast({
-        title: "Error",
-        description: err.message || "Authentication failed",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    handleAuthCallback();
+  }, [router, supabase]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 text-white">
-      <h1 className="text-3xl font-bold mb-4">Login with Discord</h1>
-      <Button
-        onClick={handleDiscordAuth}
-        disabled={loading}
-        className="bg-indigo-600 hover:bg-indigo-700"
-      >
-        {loading ? "Connecting..." : "Login with Discord"}
-      </Button>
-
-      {error && <p className="text-red-500 mt-4">{error}</p>}
+    <div className="flex h-screen items-center justify-center bg-black text-white">
+      <div className="text-center">
+        <h1 className="text-3xl font-bold mb-2">Logging you in...</h1>
+        <p>Please wait while we complete authentication with Discord.</p>
+      </div>
     </div>
   );
 }
